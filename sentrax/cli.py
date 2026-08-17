@@ -22,7 +22,7 @@ BANNER_ART = r""" ____             _              __  __
 |____/ \___|_| |_|\__|_|  \__,_|/_/\_\ """
 
 TAGLINE = "SentraX AI — autonomous security testing, explained."
-HINT = "Type [bold cyan]/help[/bold cyan] for commands."
+HINT = "Type [bold red]/help[/bold red] for commands."
 
 COMMANDS_META = {
     "/scan": "DAST mode: attack live web application or API",
@@ -37,12 +37,12 @@ COMMANDS_META = {
 
 PROMPT_STYLE = Style.from_dict(
     {
-        "prompt": "#06b6d4 bold",
-        "prompt-arrow": "#f8fafc bold",
+        "prompt": "#ef4444 bold",
+        "prompt-arrow": "#ef4444 bold",
         "completion-menu.completion": "bg:#1e293b #e2e8f0",
-        "completion-menu.completion.current": "bg:#0284c7 #ffffff bold",
+        "completion-menu.completion.current": "bg:#dc2626 #ffffff bold",
         "completion-menu.meta.completion": "bg:#0f172a #94a3b8",
-        "completion-menu.meta.completion.current": "bg:#0369a1 #f1f5f9 bold",
+        "completion-menu.meta.completion.current": "bg:#991b1b #fecaca bold",
         "scrollbar.background": "bg:#0f172a",
         "scrollbar.button": "bg:#334155",
     }
@@ -82,14 +82,14 @@ class SentraXCLI:
 
     def display_banner(self) -> None:
         """Display the SentraX ASCII banner and initial prompt information."""
-        self.console.print(f"[bold cyan]{BANNER_ART}[/bold cyan]\n")
+        self.console.print(f"[bold red]{BANNER_ART}[/bold red]\n")
         self.console.print(f"[bold white]{TAGLINE}[/bold white]")
         self.console.print(f"{HINT}\n")
 
     def display_help(self) -> None:
         """Display table of available commands."""
-        table = Table(title="SentraX Commands", show_header=True, header_style="bold cyan")
-        table.add_column("Command", style="bold green", no_wrap=True)
+        table = Table(title="SentraX Commands", show_header=True, header_style="bold red")
+        table.add_column("Command", style="bold red", no_wrap=True)
         table.add_column("Description", style="white")
 
         table.add_row("/scan <url>", "Run DAST security scan against a live web target (e.g. http://localhost:4000)")
@@ -179,7 +179,7 @@ class SentraXCLI:
                 HTML("<prompt>sentrax</prompt> <prompt-arrow>▸</prompt-arrow> ")
             )
         # Fallback for piped input / non-interactive testing
-        self.console.print("[bold cyan]sentrax[/bold cyan] [bold white]▸[/bold white] ", end="")
+        self.console.print("[bold red]sentrax[/bold red] [bold red]▸[/bold red] ", end="")
         return input()
 
     def run(self) -> int:
