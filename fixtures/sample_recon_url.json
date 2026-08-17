@@ -1,0 +1,41 @@
+{
+  "mode": "url",
+  "target": "http://localhost:4000",
+  "pages": [
+    {
+      "url": "http://localhost:4000/login",
+      "forms": [
+        {
+          "action": "/api/login",
+          "method": "POST",
+          "fields": ["email", "password"]
+        }
+      ],
+      "endpoints_observed": [
+        "/api/login",
+        "/api/products"
+      ]
+    },
+    {
+      "url": "http://localhost:4000/reviews",
+      "forms": [
+        {
+          "action": "/api/reviews",
+          "method": "POST",
+          "fields": ["rating", "comment"]
+        }
+      ],
+      "endpoints_observed": [
+        "/api/reviews"
+      ]
+    },
+    {
+      "url": "http://localhost:4000/account",
+      "forms": [],
+      "endpoints_observed": [
+        "/api/order/1",
+        "/api/order/2"
+      ]
+    }
+  ]
+}

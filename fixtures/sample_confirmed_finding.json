@@ -1,0 +1,67 @@
+[
+  {
+    "finding_id": "f1",
+    "vuln_type": "sqli",
+    "target": "/api/login",
+    "mode": "dast",
+    "confirmed": true,
+    "evidence": {
+      "request_sent": "POST /api/login with email=\"' OR 1=1--\" and password=\"anything\"",
+      "response_snippet": "HTTP 200 OK: {\"success\": true, \"token\": \"eyJhbGciOi...\", \"user\": {\"id\": 1, \"email\": \"admin@vulnmart.test\"}}",
+      "why_confirmed": "Authentication was successfully bypassed using SQL injection payload in email field without valid credentials."
+    },
+    "severity": "high"
+  },
+  {
+    "finding_id": "f2",
+    "vuln_type": "xss",
+    "target": "/api/reviews",
+    "mode": "dast",
+    "confirmed": true,
+    "evidence": {
+      "request_sent": "POST /api/reviews with comment=\"<script>alert('sentrax')</script>\" followed by GET /reviews",
+      "response_snippet": "<div class=\"review-body\"><script>alert('sentrax')</script></div>",
+      "why_confirmed": "Injected JavaScript payload was reflected verbatim without HTML escaping in subsequent GET response."
+    },
+    "severity": "high"
+  },
+  {
+    "finding_id": "f3",
+    "vuln_type": "idor",
+    "target": "/api/order/2",
+    "mode": "dast",
+    "confirmed": true,
+    "evidence": {
+      "request_sent": "GET /api/order/2 authenticated as Alice (user_id=1)",
+      "response_snippet": "HTTP 200 OK: {\"order_id\": 2, \"owner\": \"bob@vulnmart.test\", \"items\": [{\"product\": \"Wireless Headphones\", \"price\": 99.99}]}",
+      "why_confirmed": "Authenticated user Alice successfully retrieved order records belonging to Bob without authorization."
+    },
+    "severity": "medium"
+  },
+  {
+    "finding_id": "f4",
+    "vuln_type": "sqli",
+    "target": "routes/login.js:42",
+    "mode": "sast",
+    "confirmed": true,
+    "evidence": {
+      "request_sent": "Static code analysis pattern check",
+      "response_snippet": "const query = \"SELECT * FROM users WHERE email='\" + email + \"' AND password='\" + password + \"'\";",
+      "why_confirmed": "User input variable `email` is directly concatenated into SQL query string without parameterization or escaping."
+    },
+    "severity": "high"
+  },
+  {
+    "finding_id": "f5",
+    "vuln_type": "broken_auth",
+    "target": "/api/login",
+    "mode": "dast",
+    "confirmed": true,
+    "evidence": {
+      "request_sent": "15 consecutive failed POST /api/login requests within 2 seconds",
+      "response_snippet": "All 15 responses returned HTTP 401 with identical latency (~12ms) and no rate-limit headers or CAPTCHA requirement.",
+      "why_confirmed": "No rate limiting, account lockout, or throttling observed after multiple rapid failed login attempts."
+    },
+    "severity": "medium"
+  }
+]

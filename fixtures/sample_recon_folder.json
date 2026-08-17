@@ -1,0 +1,30 @@
+{
+  "mode": "folder",
+  "target": "/path/to/scanned/folder",
+  "findings_raw": [
+    {
+      "file": "routes/login.js",
+      "line": 42,
+      "pattern": "sqli_concat",
+      "snippet": "\"SELECT * FROM users WHERE email='\" + email"
+    },
+    {
+      "file": "views/reviews.js",
+      "line": 18,
+      "pattern": "xss_innerhtml",
+      "snippet": "reviewContainer.innerHTML = userReview"
+    },
+    {
+      "file": "routes/orders.js",
+      "line": 25,
+      "pattern": "idor_missing_authz",
+      "snippet": "const order = await Order.findById(req.params.id)"
+    },
+    {
+      "file": "routes/auth.js",
+      "line": 12,
+      "pattern": "hardcoded_secret",
+      "snippet": "const JWT_SECRET = \"supersecret123\""
+    }
+  ]
+}
