@@ -37,3 +37,15 @@ htmlcov/
 # Generated reports (except .gitkeep)
 reports/*
 !reports/.gitkeep
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+
