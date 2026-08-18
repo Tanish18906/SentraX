@@ -3,7 +3,6 @@
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Tests](https://img.shields.io/badge/tests-89%20passed-brightgreen.svg)]()
 [![Architecture](https://img.shields.io/badge/architecture-5--Agent%20Pipeline-red.svg)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **Autonomous security testing, explained.**  
 > SentraX AI is an autonomous multi-agent security testing CLI that finds, proves, explains, and fixes web application and source code vulnerabilities with deterministic evidence.
@@ -25,7 +24,6 @@
 - [Scan Reports & Deliverables](#-scan-reports--deliverables)
 - [Running Automated Tests](#-running-automated-tests)
 - [Repository Structure](#-repository-structure)
-- [License](#-license)
 
 ---
 
@@ -302,9 +300,3 @@ SentraX/
 ├── requirements.txt              # Production & development dependencies
 └── README.md                     # Documentation
 ```
-
----
-
-## ⚖️ License
-
-This project is licensed under the [MIT License](LICENSE).
