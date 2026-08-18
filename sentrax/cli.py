@@ -6,7 +6,7 @@ Reference: Docs/CLI.md
 from __future__ import annotations
 
 import sys
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
@@ -14,6 +14,20 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.styles import Style
 from rich.console import Console
 from rich.table import Table
+
+from sentrax.agents.recon import TargetUnreachableError
+from sentrax.agents.reporter import VULN_TYPE_NAMES
+from sentrax.orchestrator import PipelineOrchestrator
+from sentrax.utils.llm_client import LLMCallError
+from sentrax.utils.schema import FinalScanReport
+
+STAGE_META = {
+    "recon": ("cyan", "RECON"),
+    "strategist": ("yellow", "STRATEGIST"),
+    "exploit": ("red", "EXPLOIT"),
+    "remediation": ("magenta", "REMEDIATION"),
+    "reporter": ("green", "REPORTER"),
+}
 
 BANNER_ART = r""" ____             _              __  __
 / ___|  ___ _ __ | |_ _ __ __ _ \ \/ /
@@ -63,9 +77,26 @@ def get_command_completer() -> WordCompleter:
 class SentraXCLI:
     """Interactive command-line shell for SentraX AI."""
 
-    def __init__(self, console: Optional[Console] = None):
+    def __init__(
+        self,
+        console: Optional[Console] = None,
+        orchestrator: Optional[PipelineOrchestrator] = None,
+        demo_mode: bool = False,
+    ):
         self.console: Console = console or Console()
-        self.last_report: Optional[str] = None
+        self.demo_mode = demo_mode
+        if orchestrator is not None:
+            self.orchestrator: PipelineOrchestrator = orchestrator
+        elif demo_mode:
+            from sentrax.utils.demo_agents import DemoRemediationAgent, DemoStrategistAgent
+
+            self.orchestrator = PipelineOrchestrator(
+                strategist_agent=DemoStrategistAgent(),
+                remediation_agent=DemoRemediationAgent(),
+            )
+        else:
+            self.orchestrator = PipelineOrchestrator()
+        self.last_report: Optional[Dict[str, Any]] = None
         self.is_running: bool = False
         self._prompt_session: Optional[PromptSession] = None
 
@@ -85,6 +116,11 @@ class SentraXCLI:
         self.console.print(f"[bold red]{BANNER_ART}[/bold red]\n")
         self.console.print(f"[bold white]{TAGLINE}[/bold white]")
         self.console.print(f"{HINT}\n")
+        if self.demo_mode:
+            self.console.print(
+                "[bold yellow][DEMO MODE][/bold yellow] Strategist/Remediation reasoning is "
+                "cached — Recon, Exploit, and Reporter still run fully live against the real target.\n"
+            )
 
     def display_help(self) -> None:
         """Display table of available commands."""
@@ -145,7 +181,7 @@ class SentraXCLI:
 
         elif cmd == "/report":
             if self.last_report:
-                self.console.print(self.last_report)
+                self.orchestrator.reporter_agent.render_terminal(FinalScanReport(**self.last_report))
             else:
                 self.console.print("[yellow]No scan report available yet. Run /scan or /scan-code first.[/yellow]")
             return True
@@ -155,8 +191,7 @@ class SentraXCLI:
                 self.console.print("[red]Usage: /scan <url>[/red]")
                 self.console.print("[dim]Example: /scan http://localhost:4000[/dim]")
                 return True
-            # Placeholder for Phase 1 - real agent execution will be wired in Phase 8
-            self.console.print(f"[cyan][*][/cyan] Would run DAST scan on target: [bold]{args}[/bold] (agent pipeline placeholder)")
+            self._run_scan(args, mode="url")
             return True
 
         elif cmd == "/scan-code":
@@ -164,13 +199,126 @@ class SentraXCLI:
                 self.console.print("[red]Usage: /scan-code <folder>[/red]")
                 self.console.print("[dim]Example: /scan-code ./routes[/dim]")
                 return True
-            # Placeholder for Phase 1 - real agent execution will be wired in Phase 8
-            self.console.print(f"[cyan][*][/cyan] Would run SAST code scan on folder: [bold]{args}[/bold] (agent pipeline placeholder)")
+            self._run_scan(args, mode="folder")
             return True
 
         else:
             self.console.print(f"[red]Unknown command: {cmd} — try /help[/red]")
             return True
+
+    @staticmethod
+    def _label(stage: str) -> str:
+        color, name = STAGE_META[stage]
+        return f"[{color}][{name}][/{color}]"
+
+    def _handle_pipeline_event(self, event: Dict[str, Any], status, finding_vuln_types: Dict[str, str]) -> None:
+        """Render one orchestrator progress event as a styled, labeled line (CLI.md section 5)."""
+        stage = event["stage"]
+        etype = event["type"]
+        label = self._label(stage)
+
+        if stage == "recon":
+            if etype == "start":
+                desc = (
+                    f"Mapping attack surface at {event['target']}..."
+                    if event["mode"] == "url"
+                    else f"Scanning source folder {event['target']}..."
+                )
+                status.update(f"{label} {desc}")
+                self.console.print(f"{label} {desc}")
+            elif etype == "done":
+                if "pages" in event:
+                    self.console.print(
+                        f"{label} Found {event['pages']} pages, {event['forms']} forms, "
+                        f"{event['endpoints']} API endpoints.\n"
+                    )
+                else:
+                    self.console.print(f"{label} Found {event['findings_raw']} candidate pattern matches.\n")
+
+        elif stage == "strategist":
+            if etype == "start":
+                status.update(f"{label} Analyzing attack surface...")
+                self.console.print(f"{label} Analyzing attack surface...")
+            elif etype == "item":
+                task = event["task"]
+                vuln_name = VULN_TYPE_NAMES.get(task["vuln_type"], task["vuln_type"])
+                self.console.print(f"{label} → {task['target']}: testing for {vuln_name} ({task['reasoning']})")
+            elif etype == "done":
+                self.console.print()
+
+        elif stage == "exploit":
+            if etype == "start":
+                status.update(f"{label} Attempting confirmations...")
+            elif etype == "item":
+                finding = event["finding"]
+                finding_vuln_types[finding["finding_id"]] = finding["vuln_type"]
+                vuln_name = VULN_TYPE_NAMES.get(finding["vuln_type"], finding["vuln_type"])
+                self.console.print(f"{label} Attempting {vuln_name} on {finding['target']}...")
+                if finding["confirmed"]:
+                    self.console.print(
+                        f"{label} [bold green]✓ CONFIRMED[/bold green] — {finding['evidence']['why_confirmed']}"
+                    )
+                else:
+                    self.console.print(
+                        f"{label} [bold yellow]✗ Ruled out[/bold yellow] — {finding['evidence']['why_confirmed']}"
+                    )
+            elif etype == "done":
+                self.console.print()
+
+        elif stage == "remediation":
+            if etype == "start":
+                status.update(f"{label} Generating fixes...")
+            elif etype == "item":
+                fix = event["fix"]
+                vuln_name = VULN_TYPE_NAMES.get(finding_vuln_types.get(fix["finding_id"], ""), "confirmed")
+                self.console.print(f"{label} Generating fix for {vuln_name} finding...")
+            elif etype == "done":
+                self.console.print()
+
+        elif stage == "reporter":
+            if etype == "start":
+                status.update(f"{label} Compiling final report...")
+                self.console.print(f"{label} Compiling final report...")
+            elif etype == "done":
+                self.console.print(f"{label} Report saved to {event['report_path']}\n")
+
+    def _run_scan(self, target: str, mode: str) -> None:
+        """Run the full pipeline for /scan or /scan-code, streaming live agent activity.
+
+        Errors named in CLI.md section 6 (unreachable target, bad folder, LLM
+        failure) get a specific, clear message rather than a raw traceback.
+        Anything else falls through to run()'s outer generic-error handler.
+        Ctrl+C is deliberately not caught here — it propagates to run()'s
+        existing KeyboardInterrupt handler, which prints "Scan interrupted."
+        and returns to the prompt without killing the session.
+        """
+        mode_label = "DAST" if mode == "url" else "SAST"
+        self.console.print(f"\n[bold white]Starting {mode_label} scan on[/bold white] [bold]{target}[/bold]\n")
+        self.is_running = True
+        finding_vuln_types: Dict[str, str] = {}
+
+        try:
+            with self.console.status("[bold white]Initializing pipeline...[/bold white]", spinner="dots") as status:
+
+                def on_event(event: Dict[str, Any]) -> None:
+                    self._handle_pipeline_event(event, status, finding_vuln_types)
+
+                report = self.orchestrator.run(target, mode=mode, display=False, on_event=on_event)
+
+            self.last_report = report
+            self.console.print()
+            self.orchestrator.reporter_agent.render_terminal(FinalScanReport(**report))
+
+        except TargetUnreachableError as e:
+            self.console.print(f"[bold red]{e}[/bold red]")
+        except FileNotFoundError as e:
+            self.console.print(f"[bold red]{e}[/bold red]")
+        except LLMCallError as e:
+            self.console.print(
+                f"{self._label('strategist')} [bold red]{e} — could not generate a test plan for this scan.[/bold red]"
+            )
+        finally:
+            self.is_running = False
 
     def _read_input(self) -> str:
         """Read a line of user input with dropdown autocompletion if interactive."""
@@ -210,9 +358,16 @@ class SentraXCLI:
         return 0
 
 
-def main() -> int:
-    """Console script entry point."""
-    cli = SentraXCLI()
+def main(argv: Optional[List[str]] = None) -> int:
+    """Console script entry point.
+
+    `--demo` (Docs/CLI.md section 7) is the only recognized flag — launch
+    still takes no required arguments (CLI.md section 1); everything else
+    is typed into the running session.
+    """
+    args = sys.argv[1:] if argv is None else argv
+    demo_mode = "--demo" in args
+    cli = SentraXCLI(demo_mode=demo_mode)
     return cli.run()
 
 

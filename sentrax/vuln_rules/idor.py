@@ -32,7 +32,14 @@ _AUTHZ_CHECK_HINTS = re.compile(
     r"""req\.user\.id|request\.user\.id|current_user|owner_id\s*===?|\.owner\s*!==?""",
     re.IGNORECASE,
 )
-_ID_LOOKUP_PATTERN = re.compile(r"""(?:findById|findByPk|findOne|get_object_or_404)\s*\(""", re.IGNORECASE)
+_ID_LOOKUP_PATTERN = re.compile(
+    r"""(?:findById|findByPk|findOne|get_object_or_404)\s*\("""
+    # Raw prepared-statement lookups keyed by a request-derived id-shaped variable, e.g.
+    # db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) — parameterized against
+    # SQL injection, but still a direct-by-id lookup with no ownership check visible here.
+    r"""|\.prepare\([^)]*\)\.get\s*\(\s*[a-zA-Z_][a-zA-Z0-9_]*id\b""",
+    re.IGNORECASE,
+)
 
 
 def _login(session: requests.Session, base_url: str) -> Optional[Dict[str, Any]]:

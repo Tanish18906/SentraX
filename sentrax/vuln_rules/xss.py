@@ -25,7 +25,12 @@ TIMEOUT = 10.0
 REVIEWS_PAGE_PATH = "/reviews"
 
 _SANITIZE_HINTS = re.compile(r"""DOMPurify\.sanitize|sanitize\(|escape\(|textContent\s*=""", re.IGNORECASE)
-_XSS_SINK_PATTERN = re.compile(r"""\.innerHTML\s*=|dangerouslySetInnerHTML|document\.write\(""")
+_XSS_SINK_PATTERN = re.compile(
+    r"""\.innerHTML\s*=|dangerouslySetInnerHTML|document\.write\("""
+    # JS template literal interpolating a value directly into HTML markup, e.g.
+    # <div class="review-comment">${r.comment}</div> — unescaped by construction.
+    r"""|<[a-zA-Z][^>]*>\s*\$\{[a-zA-Z0-9_.]+\}"""
+)
 
 
 def confirm_dast(session: requests.Session, base_url: str, target: str) -> Tuple[bool, Dict[str, Any]]:

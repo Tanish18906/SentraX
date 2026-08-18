@@ -28,7 +28,10 @@ PAYLOAD_PASSWORD = "anything"
 # the initial pattern match.
 _CONCAT_PATTERN = re.compile(
     r"""(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?['"]\s*\+\s*[a-zA-Z0-9_]+"""
-    r"""|f["'].*?(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?\{[a-zA-Z0-9_]+\}""",
+    r"""|f["'].*?(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?\{[a-zA-Z0-9_]+\}"""
+    # JS template literal interpolation directly into a SQL keyword clause, e.g.
+    # `SELECT * FROM users WHERE email='${email}'` — same raw-concat bug, different syntax.
+    r"""|`.*?(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?\$\{[a-zA-Z0-9_]+\}""",
     re.IGNORECASE,
 )
 _PARAMETERIZED_PATTERN = re.compile(r"""\?\s*[,)]|%s\b|\.execute\([^,]+,\s*[\[\(]""")

@@ -51,6 +51,21 @@ def test_sqli_sast_not_confirmed_on_parameterized_query():
     assert confirmed is False
 
 
+def test_sqli_sast_confirmed_on_js_template_literal_concat():
+    # Real VulnMart bug shape (server.js:197) — backtick template literal
+    # interpolating raw user input directly into a SQL keyword clause.
+    snippet = "const query = `SELECT * FROM users WHERE email='${email}' AND password='${password}'`;"
+    confirmed, evidence = sqli.confirm_sast(snippet, "server.js", 197)
+    assert confirmed is True
+    assert evidence["response_snippet"] == snippet
+
+
+def test_sqli_sast_not_confirmed_on_parameterized_template_literal():
+    snippet = "const query = `SELECT * FROM orders WHERE id = ?`;"
+    confirmed, _evidence = sqli.confirm_sast(snippet, "server.js", 390)
+    assert confirmed is False
+
+
 # --- XSS ---
 
 
@@ -118,6 +133,21 @@ def test_xss_sast_confirmed_on_innerhtml_sink():
 def test_xss_sast_not_confirmed_when_sanitized():
     snippet = "reviewContainer.innerHTML = DOMPurify.sanitize(userReview)"
     confirmed, _evidence = xss.confirm_sast(snippet, "views/reviews.js", 18)
+    assert confirmed is False
+
+
+def test_xss_sast_confirmed_on_template_literal_interpolation_into_markup():
+    # Real VulnMart bug shape (server.js:251) — template literal interpolating
+    # a review field straight into HTML markup with no escaping.
+    snippet = '<div class="review-comment">${r.comment}</div>'
+    confirmed, evidence = xss.confirm_sast(snippet, "server.js", 251)
+    assert confirmed is True
+    assert evidence["response_snippet"] == snippet
+
+
+def test_xss_sast_not_confirmed_when_template_interpolation_sanitized():
+    snippet = '<div class="review-comment">${DOMPurify.sanitize(r.comment)}</div>'
+    confirmed, _evidence = xss.confirm_sast(snippet, "server.js", 251)
     assert confirmed is False
 
 
@@ -189,6 +219,21 @@ def test_idor_sast_confirmed_on_direct_lookup():
 def test_idor_sast_not_confirmed_with_ownership_check():
     snippet = "if (order.owner_id === req.user.id) { const order = await Order.findById(req.params.id) }"
     confirmed, _evidence = idor.confirm_sast(snippet, "routes/orders.js", 25)
+    assert confirmed is False
+
+
+def test_idor_sast_confirmed_on_raw_prepared_statement_lookup():
+    # Real VulnMart bug shape (server.js:462) — parameterized against SQLi,
+    # but still a direct-by-id lookup with no ownership check on this line.
+    snippet = "const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);"
+    confirmed, evidence = idor.confirm_sast(snippet, "server.js", 462)
+    assert confirmed is True
+    assert evidence["response_snippet"] == snippet
+
+
+def test_idor_sast_not_confirmed_on_prepared_statement_with_no_id_argument():
+    snippet = "const count = db.prepare('SELECT COUNT(*) as count FROM orders').get();"
+    confirmed, _evidence = idor.confirm_sast(snippet, "server.js", 500)
     assert confirmed is False
 
 

@@ -38,14 +38,15 @@ class ReconAgent:
         (
             "sqli_concat",
             re.compile(
-                r"""(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?['"]\s*\+\s*[a-zA-Z0-9_]+|["'].*?(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?%\s*[a-zA-Z0-9_]+|f["'].*?(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?\{[a-zA-Z0-9_]+\}""",
+                r"""(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?['"]\s*\+\s*[a-zA-Z0-9_]+|["'].*?(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?%\s*[a-zA-Z0-9_]+|f["'].*?(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?\{[a-zA-Z0-9_]+\}|`.*?(?:SELECT\b|INSERT\s+INTO\b|UPDATE\b|DELETE\s+FROM\b).*?\$\{[a-zA-Z0-9_\.]+\}""",
                 re.IGNORECASE,
             ),
         ),
         (
             "xss_innerhtml",
             re.compile(
-                r"""(?:\.innerHTML\s*=|dangerouslySetInnerHTML|document\.write\()"""
+                r"""(?:\.innerHTML\s*=|dangerouslySetInnerHTML|document\.write\(|<[^>]*>\$\{[a-zA-Z0-9_\.]*(?:comment|review|input|param|body|msg|text|data|content)[a-zA-Z0-9_\.]*\})""",
+                re.IGNORECASE,
             ),
         ),
         (
@@ -58,7 +59,7 @@ class ReconAgent:
         (
             "idor_missing_authz",
             re.compile(
-                r"""(?:findById|findByPk|findOne|get_object_or_404)\s*\(\s*(?:req\.params\.[a-zA-Z0-9_]+|request\.(?:GET|POST|query_params)\[['"][a-zA-Z0-9_]+['"]\])""",
+                r"""(?:findById|findByPk|findOne|get_object_or_404|\.prepare\(.*?\)\.get)\s*\(\s*(?:req\.params\.[a-zA-Z0-9_]+|request\.(?:GET|POST|query_params)\[['"][a-zA-Z0-9_]+['"]\]|orderId)""",
                 re.IGNORECASE,
             ),
         ),

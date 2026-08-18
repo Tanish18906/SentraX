@@ -244,7 +244,11 @@ class ReporterAgent:
         if custom_filename:
             file_name = custom_filename
         else:
-            safe_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
+            # Microsecond precision, not just seconds — two scans (e.g. a DAST
+            # run immediately followed by a SAST run) can finish within the same
+            # wall-clock second and would otherwise silently overwrite each
+            # other's report file under a second-granularity timestamp.
+            safe_ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S_%f")
             file_name = f"scan_{safe_ts}.md"
 
         file_path = self.reports_dir / file_name

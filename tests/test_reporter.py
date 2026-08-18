@@ -178,3 +178,17 @@ def test_reporter_skips_unconfirmed_findings(tmp_path: Path):
     result = agent.compile_report("http://localhost:4000", "dast", mixed_findings)
     assert result.summary.total_findings == 1
     assert result.findings[0].finding.finding_id == "f1"
+
+
+def test_reporter_back_to_back_scans_do_not_collide_on_filename(tmp_path: Path):
+    """Two scans finishing in the same wall-clock second must not overwrite each other's report."""
+    agent = ReporterAgent(reports_dir=tmp_path)
+    report_a = agent.compile_report("http://localhost:4000", "dast", [])
+    report_b = agent.compile_report("./target", "sast", [])
+
+    path_a = agent.save_markdown_report(report_a)
+    path_b = agent.save_markdown_report(report_b)
+
+    assert path_a != path_b
+    assert path_a.exists()
+    assert path_b.exists()
