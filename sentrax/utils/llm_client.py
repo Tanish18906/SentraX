@@ -34,7 +34,9 @@ class LLMClient:
         model: Optional[str] = None,
         max_retries: int = 1,
     ):
-        self.provider = (provider or os.getenv("SENTRAX_LLM_PROVIDER", "openai")).lower()
+        self.provider = (
+            provider or os.getenv("LLM_PROVIDER") or os.getenv("SENTRAX_LLM_PROVIDER", "openai")
+        ).lower()
         self.max_retries = max_retries
 
         if self.provider == "openai":
@@ -43,7 +45,7 @@ class LLMClient:
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
                 raise LLMCallError("OPENAI_API_KEY is not set (check .env).")
-            self.model = model or os.getenv("SENTRAX_LLM_MODEL", DEFAULT_OPENAI_MODEL)
+            self.model = model or os.getenv("LLM_MODEL") or os.getenv("SENTRAX_LLM_MODEL", DEFAULT_OPENAI_MODEL)
             self._client = OpenAI(api_key=api_key)
         elif self.provider == "anthropic":
             from anthropic import Anthropic
@@ -51,14 +53,19 @@ class LLMClient:
             api_key = os.getenv("ANTHROPIC_API_KEY")
             if not api_key:
                 raise LLMCallError("ANTHROPIC_API_KEY is not set (check .env).")
-            self.model = model or os.getenv("SENTRAX_LLM_MODEL", DEFAULT_ANTHROPIC_MODEL)
+            self.model = model or os.getenv("LLM_MODEL") or os.getenv("SENTRAX_LLM_MODEL", DEFAULT_ANTHROPIC_MODEL)
             self._client = Anthropic(api_key=api_key)
         else:
             raise LLMCallError(
                 f"Unknown SENTRAX_LLM_PROVIDER: {self.provider!r} (expected 'openai' or 'anthropic')"
             )
 
-    def complete_json(self, system_prompt: str, user_prompt: str, temperature: float = 0.2) -> Dict[str, Any]:
+    def complete_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: Optional[float] = None,
+    ) -> Dict[str, Any]:
         """Call the LLM and parse its response as a JSON object.
 
         Retries once (by default) on transient failures — network errors,
@@ -76,24 +83,39 @@ class LLMClient:
                     time.sleep(1)
         raise LLMCallError(f"LLM call failed after {self.max_retries + 1} attempt(s): {last_error}") from last_error
 
-    def _call(self, system_prompt: str, user_prompt: str, temperature: float) -> str:
+    def _call(self, system_prompt: str, user_prompt: str, temperature: Optional[float] = None) -> str:
         if self.provider == "openai":
-            response = self._client.chat.completions.create(
-                model=self.model,
-                temperature=temperature,
-                response_format={"type": "json_object"},
-                messages=[
+            kwargs: Dict[str, Any] = {
+                "model": self.model,
+                "response_format": {"type": "json_object"},
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-            )
-            return response.choices[0].message.content or ""
+            }
+            if temperature is not None:
+                kwargs["temperature"] = temperature
 
-        response = self._client.messages.create(
-            model=self.model,
-            max_tokens=2048,
-            temperature=temperature,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
+            try:
+                response = self._client.chat.completions.create(**kwargs)
+                return response.choices[0].message.content or ""
+            except Exception as e:
+                err_msg = str(e).lower()
+                # If model requires default temperature (e.g. o1, reasoning models, custom endpoints)
+                if "temperature" in err_msg and ("unsupported" in err_msg or "default" in err_msg):
+                    kwargs.pop("temperature", None)
+                    response = self._client.chat.completions.create(**kwargs)
+                    return response.choices[0].message.content or ""
+                raise
+
+        kwargs_anthropic: Dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": 2048,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_prompt}],
+        }
+        if temperature is not None:
+            kwargs_anthropic["temperature"] = temperature
+
+        response = self._client.messages.create(**kwargs_anthropic)
         return "".join(block.text for block in response.content if block.type == "text")

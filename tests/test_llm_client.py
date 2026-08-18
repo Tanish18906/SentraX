@@ -65,3 +65,32 @@ def test_complete_json_retries_on_bad_json_then_succeeds(monkeypatch):
         result = client.complete_json("system", "user")
 
     assert result == {"tasks": []}
+
+
+def test_llm_model_env_var_used(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL", "gpt-5.6-terra")
+    client = LLMClient(provider="openai")
+    assert client.model == "gpt-5.6-terra"
+
+
+def test_openai_fallback_when_temperature_unsupported(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    client = LLMClient(provider="openai", max_retries=0)
+
+    fake_response = MagicMock()
+    fake_response.choices = [MagicMock(message=MagicMock(content='{"tasks": []}'))]
+
+    # First call with temperature raises unsupported_value, retry without temperature succeeds
+    client._client.chat.completions.create = MagicMock(
+        side_effect=[
+            RuntimeError("Unsupported value: 'temperature' does not support 0.2 with this model. Only the default (1) value is supported."),
+            fake_response,
+        ]
+    )
+
+    result = client.complete_json("system", "user", temperature=0.2)
+    assert result == {"tasks": []}
+    assert client._client.chat.completions.create.call_count == 2
+
+
