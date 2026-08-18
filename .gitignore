@@ -49,3 +49,10 @@ yarn-error.log*
 *.sqlite
 *.sqlite3
 
+# Prompts & Build Instructions
+*prompt*
+*prompts*
+*.prompt
+*.prompts
+Docs/*prompt*
+Docs/*prompts*
